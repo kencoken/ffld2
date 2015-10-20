@@ -37,84 +37,84 @@ name_(name), pose_(pose), truncated_(truncated), difficult_(difficult), bndbox_(
 
 bool Object::empty() const
 {
-	return (name() == UNKNOWN) && (pose() == UNSPECIFIED) && !truncated() && !difficult() &&
-		   bndbox().empty();
+  return (name() == UNKNOWN) && (pose() == UNSPECIFIED) && !truncated() && !difficult() &&
+       bndbox().empty();
 }
 
 Object::Name Object::name() const
 {
-	return name_;
+  return name_;
 }
 
 void Object::setName(Name name)
 {
-	name_ = name;
+  name_ = name;
 }
 
 Object::Pose Object::pose() const
 {
-	return pose_;
+  return pose_;
 }
 
 void Object::setPose(Pose pose)
 {
-	pose_ = pose;
+  pose_ = pose;
 }
 
 bool Object::truncated() const
 {
-	return truncated_;
+  return truncated_;
 }
 
 void Object::setTruncated(bool truncated)
 {
-	truncated_ = truncated;
+  truncated_ = truncated;
 }
 
 bool Object::difficult() const
 {
-	return difficult_;
+  return difficult_;
 }
 
 void Object::setDifficult(bool difficult)
 {
-	difficult_ = difficult;
+  difficult_ = difficult;
 }
 
 Rectangle Object::bndbox() const
 {
-	return bndbox_;
+  return bndbox_;
 }
 
 void Object::setBndbox(Rectangle bndbox)
 {
-	bndbox_ = bndbox;
+  bndbox_ = bndbox;
 }
 
 ostream & FFLD::operator<<(ostream & os, const Object & obj)
 {
-	return os << static_cast<int>(obj.name()) << ' ' << static_cast<int>(obj.pose()) << ' '
-			  << obj.truncated() << ' ' << obj.difficult() << ' ' << obj.bndbox();
+  return os << static_cast<int>(obj.name()) << ' ' << static_cast<int>(obj.pose()) << ' '
+        << obj.truncated() << ' ' << obj.difficult() << ' ' << obj.bndbox();
 }
 
 istream & FFLD::operator>>(istream & is, Object & obj)
 {
-	int name, pose;
-	bool truncated, difficult;
-	Rectangle bndbox;
-	
+  int name, pose;
+  bool truncated, difficult;
+  Rectangle bndbox;
+
     is >> name >> pose >> truncated >> difficult >> bndbox;
-	
-	if (!is) {
-		obj = Object();
-		return is;
-	}
-	
-	obj.setName(static_cast<Object::Name>(name));
-	obj.setPose(static_cast<Object::Pose>(pose));
-	obj.setTruncated(truncated);
-	obj.setDifficult(difficult);
-	obj.setBndbox(bndbox);
-	
+
+  if (!is) {
+    obj = Object();
+    return is;
+  }
+
+  obj.setName(static_cast<Object::Name>(name));
+  obj.setPose(static_cast<Object::Pose>(pose));
+  obj.setTruncated(truncated);
+  obj.setDifficult(difficult);
+  obj.setBndbox(bndbox);
+
     return is;
 }
