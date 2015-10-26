@@ -13,7 +13,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 
 PROJECT(FFLD)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -std=c++11")
 
 # The build options
 OPTION(FFLD_HOGPYRAMID_DOUBLE "Use doubles instead of floats (slower, uses twice more memory, and the increase in precision is not necessarily useful)." OFF)
@@ -38,6 +38,10 @@ ADD_EXECUTABLE(train train.cpp)
 target_link_libraries(train ffld2)
 ADD_EXECUTABLE(test test.cpp)
 target_link_libraries(test ffld2)
+ADD_EXECUTABLE(train_faces train_faces.cpp)
+target_link_libraries(train_faces ffld2)
+ADD_EXECUTABLE(test_faces test_faces.cpp)
+target_link_libraries(test_faces ffld2)
 
 # Define the options
 IF(FFLD_HOGPYRAMID_DOUBLE)
@@ -81,12 +85,16 @@ ENDIF()
 INCLUDE_DIRECTORIES(${FFTW3_INCLUDE_DIR})
 TARGET_LINK_LIBRARIES(train ${FFTW3_LIBRARIES})
 TARGET_LINK_LIBRARIES(test ${FFTW3_LIBRARIES})
+TARGET_LINK_LIBRARIES(train_faces ${FFTW3_LIBRARIES})
+TARGET_LINK_LIBRARIES(test_faces ${FFTW3_LIBRARIES})
 
 FIND_PACKAGE(JPEG REQUIRED)
 IF(JPEG_FOUND)
   INCLUDE_DIRECTORIES(${JPEG_INCLUDE_DIR})
   TARGET_LINK_LIBRARIES(train ${JPEG_LIBRARIES})
   TARGET_LINK_LIBRARIES(test ${JPEG_LIBRARIES})
+  TARGET_LINK_LIBRARIES(train_faces ${JPEG_LIBRARIES})
+  TARGET_LINK_LIBRARIES(test_faces ${JPEG_LIBRARIES})
 ENDIF()
 
 FIND_PACKAGE(LibXml2 REQUIRED)
@@ -94,6 +102,8 @@ IF(LIBXML2_FOUND)
   INCLUDE_DIRECTORIES(${LIBXML2_INCLUDE_DIR})
   TARGET_LINK_LIBRARIES(train ${LIBXML2_LIBRARIES})
   TARGET_LINK_LIBRARIES(test ${LIBXML2_LIBRARIES})
+  TARGET_LINK_LIBRARIES(train_faces ${LIBXML2_LIBRARIES})
+  TARGET_LINK_LIBRARIES(test_faces ${LIBXML2_LIBRARIES})
   ADD_DEFINITIONS(${LIBXML2_DEFINITIONS})
 ENDIF()
 

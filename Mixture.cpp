@@ -28,6 +28,9 @@
 #include <fstream>
 #include <iostream>
 
+#include <iomanip>
+#include <ctime>
+
 using namespace Eigen;
 using namespace FFLD;
 using namespace std;
@@ -199,7 +202,9 @@ double Mixture::train(const vector<Scene> & scenes, Object::Name name, int padx,
 
       loss = train(positives, negatives, C, J, maxIterations);
 
-      cout << "Relabel: " << relabel << ", datamine: " << datamine
+      auto t = time(nullptr);
+      auto tm = *localtime(&t);
+      cout << put_time(&tm, "%d-%m-%Y %H-%M-%S") << " Relabel: " << relabel << ", datamine: " << datamine
          << ", # positives: " << positives.size() << ", # hard negatives: " << j
          << " (already in the cache) + " << (negatives.size() - j) << " (new) = "
          << negatives.size() << ", loss (cache): " << loss << endl;
@@ -378,6 +383,8 @@ void Mixture::posLatentSearch(const vector<Scene> & scenes, Object::Name name, i
 
   positives.clear();
 
+  int nbPosScenesUsed = 0;
+
   for (int i = 0; i < scenes.size(); ++i) {
     // Skip negative scenes
     bool negative = true;
@@ -388,6 +395,8 @@ void Mixture::posLatentSearch(const vector<Scene> & scenes, Object::Name name, i
 
     if (negative)
       continue;
+
+    nbPosScenesUsed++;
 
     const JPEGImage image(scenes[i].filename());
 
@@ -509,6 +518,7 @@ void Mixture::posLatentSearch(const vector<Scene> & scenes, Object::Name name, i
       }
     }
   }
+  cout << "posLatentSearch nbPosScenesUsed: " << nbPosScenesUsed << ", positives.size(): " << positives.size() << endl;
 }
 
 static inline bool operator==(const Model & a, const Model & b)
@@ -541,6 +551,8 @@ void Mixture::negLatentSearch(const vector<Scene> & scenes, Object::Name name, i
     return;
   }
 
+  int nbNegScenesUsed = 0;
+
   // The number of negatives already in the cache
   const int nbCached = static_cast<int>(negatives.size());
 
@@ -554,6 +566,8 @@ void Mixture::negLatentSearch(const vector<Scene> & scenes, Object::Name name, i
 
     if (positive)
       continue;
+
+    nbNegScenesUsed++;
 
     const JPEGImage image(scenes[i].filename());
 
@@ -626,6 +640,8 @@ void Mixture::negLatentSearch(const vector<Scene> & scenes, Object::Name name, i
       }
     }
   }
+
+  cout << "negLatentSearch nbNegScenesUsed: " << nbNegScenesUsed << ", negatives.size(): " << negatives.size() << endl;
 }
 
 namespace FFLD
