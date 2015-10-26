@@ -45,7 +45,7 @@ namespace featpipe {
       return (*this);
       }*/
     // main functions
-    virtual vector<vector<Rect> > detect(const vector<Mat>& images);
+    virtual vector<vector<Detection> > detect(const vector<Mat>& images);
   protected:
     void initFromConfig_();
     FFLDConfig config_;

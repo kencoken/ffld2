@@ -16,15 +16,28 @@ using cv::Rect;
 
 namespace featpipe {
 
+  struct Detection {
+    float score = 0.0;
+    Rect rect = Rect();
+
+    Detection(float score, Rect bb)
+      : score(score)
+      , rect(bb) { }
+
+    bool operator<(const Detection& detection) const {
+      return score > detection.score;
+    }
+  };
+
   class GenericDetector {
   public:
     /* empty virtual destructor, to allow overriding by derived
        classes */
     virtual ~GenericDetector() { }
     virtual GenericDetector* clone() const = 0;
-    virtual vector<vector<Rect> > detect(const vector<Mat>& images) = 0;
+    virtual vector<vector<Detection> > detect(const vector<Mat>& images) = 0;
 
-    virtual vector<Rect> detect(cv::Mat& image) {
+    virtual vector<Detection> detect(cv::Mat& image) {
       std::vector<Mat> images;
       images.push_back(image);
 
