@@ -30,6 +30,7 @@ namespace featpipe {
     FFLDDetector(const FFLDConfig& config): config_(config) {
       initFromConfig_();
     }
+    // TODO: Add constructors from protobuf config
     /*CaffeEncoder(const cpuvisor::CaffeConfig& proto_config) {
       config_ = CaffeConfig();
       config_.configureFromProtobuf(proto_config);
@@ -50,10 +51,11 @@ namespace featpipe {
     void initFromConfig_();
     FFLDConfig config_;
 
-    Mixture mixture_;
+    FFLD::Mixture mixture_;
 
     const int max_im_size_ = 1000;
   };
+
 }
 
 #endif

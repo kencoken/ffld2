@@ -84,6 +84,7 @@ public:
 
   /// Returns a copy of the image scaled to @scale. If the scale is zero or negative, the method
   /// returns an empty image.
+  JPEGImage* create_rescale(double scale) const;
   JPEGImage rescale(double scale) const;
 
 private:

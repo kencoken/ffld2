@@ -193,6 +193,12 @@ struct Bilinear
 }
 }
 
+JPEGImage* JPEGImage::create_rescale(double scale) const
+{
+  JPEGImage scaled = rescale(scale);
+  return new JPEGImage(scaled);
+}
+
 JPEGImage JPEGImage::rescale(double scale) const
 {
   // Empty image

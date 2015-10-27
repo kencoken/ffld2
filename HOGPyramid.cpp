@@ -61,20 +61,24 @@ pady_(0), interval_(0)
   for (int i = 0; i < interval; ++i) {
     const double scale = pow(2.0, -static_cast<double>(i) / interval);
 
-    JPEGImage scaled = image.rescale(scale);
+    JPEGImage* scaled = image.create_rescale(scale);
 
     // First octave at twice the image resolution
-    Hog(scaled, levels_[i], padx, pady, 4);
+    Hog(*scaled, levels_[i], padx, pady, 4);
 
     // Second octave at the original resolution
     if (i + interval <= maxScale)
-      Hog(scaled, levels_[i + interval], padx, pady, 8);
+      Hog(*scaled, levels_[i + interval], padx, pady, 8);
 
     // Remaining octaves
     for (int j = 2; i + j * interval <= maxScale; ++j) {
-      scaled = scaled.rescale(0.5);
-      Hog(scaled, levels_[i + j * interval], padx, pady, 8);
+      JPEGImage* new_scaled = scaled->create_rescale(0.5);
+      delete scaled;
+      scaled = new_scaled;
+      Hog(*scaled, levels_[i + j * interval], padx, pady, 8);
     }
+
+    delete scaled;
   }
 }
 

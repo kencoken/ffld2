@@ -20,6 +20,8 @@ namespace featpipe {
     float score = 0.0;
     Rect rect = Rect();
 
+    Detection() { }
+
     Detection(float score, Rect bb)
       : score(score)
       , rect(bb) { }
@@ -41,7 +43,7 @@ namespace featpipe {
       std::vector<Mat> images;
       images.push_back(image);
 
-      return compute(images)[0];
+      return detect(images)[0];
     }
   };
 }

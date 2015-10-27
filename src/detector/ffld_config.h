@@ -23,6 +23,7 @@ namespace featpipe {
     int padding = 6; // amount of zero padding in HOG cells
     int interval = 5; // number of levels per octave in HOG pyramid
 
+    // TODO add initializers from protobuf config
     /*inline virtual void configureFromProtobuf(const cpuvisor::CaffeConfig& proto_config) {
       param_file = proto_config.param_file();
       model_file = proto_config.model_file();
