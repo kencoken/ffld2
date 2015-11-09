@@ -74,16 +74,16 @@ using namespace std;
 struct Detection : public Rectangle
 {
   HOGPyramid::Scalar score;
-  int x;
-  int y;
+  int x_unscaled;
+  int y_unscaled;
   int z;
 
-  Detection() : score(0), x(0), y(0), z(0)
+  Detection() : score(0), x_unscaled(0), y_unscaled(0), z(0)
   {
   }
 
-  Detection(HOGPyramid::Scalar score, int x, int y, int z, Rectangle bndbox) : Rectangle(bndbox),
-  score(score), x(x), y(y), z(z)
+  Detection(HOGPyramid::Scalar score, int x_unscaled, int y_unscaled, int z, Rectangle bndbox) : Rectangle(bndbox),
+  score(score), x_unscaled(x_unscaled), y_unscaled(y_unscaled), z(z)
   {
   }
 
@@ -97,7 +97,7 @@ struct Detection : public Rectangle
 enum
 {
   OPT_INTERVAL, OPT_HELP, OPT_IMAGES, OPT_MODEL, OPT_NAME, OPT_PADDING, OPT_RESULT,
-  OPT_THRESHOLD, OPT_OVERLAP, OPT_NB_NEG
+  OPT_THRESHOLD, OPT_OVERLAP, OPT_NB_NEG, OPT_DSET_BASE_DIR, OPT_DSET_GT_FILE, OPT_OUTPUT_CROPS
 };
 
 CSimpleOpt::SOption SOptions[] =
@@ -122,6 +122,9 @@ CSimpleOpt::SOption SOptions[] =
   { OPT_OVERLAP, "--overlap", SO_REQ_SEP },
   { OPT_NB_NEG, "-z", SO_REQ_SEP },
   { OPT_NB_NEG, "--nb-negatives", SO_REQ_SEP },
+  { OPT_DSET_BASE_DIR, "--dset-base-dir", SO_REQ_SEP },
+  { OPT_DSET_GT_FILE, "--dset-gt-file", SO_REQ_SEP },
+  { OPT_OUTPUT_CROPS, "--output-crops", SO_REQ_SEP },
   SO_END_OF_OPTIONS
 };
 
@@ -139,7 +142,10 @@ void showUsage()
       "  -r,--result <file>       Write the detection result to <file> (default none)\n"
       "  -t,--threshold <arg>     Minimum detection threshold (default -1)\n"
       "  -v,--overlap <arg>       Minimum overlap in non maxima suppression (default 0.5)\n"
-      "  -z,--nb-negatives <arg>  Maximum number of negative images to consider (default all)"
+      "  -z,--nb-negatives <arg>  Maximum number of negative images to consider (default all)\n"
+      "  --dset-base-dir <arg>    Base directory for images"
+      "  --dset-gt-file <arg>     Directory GT file (containing lines of form <fname x y w h imwidth imheight>)"
+      "  --output-crops <arg>     1 for outputting crops instead of image with marked detections"
      << endl;
 }
 
@@ -154,8 +160,11 @@ struct Opts {
   double overlap = 0.5;
   int nbNegativeScenes = -1;
 
-  string voc_base_dir = "/data/ken/datasets/pascal_faces_2x/";
-  string voc_gt_file = "/data/ken/datasets/pascal_faces_2x.txt";
+  string dset_base_dir = "/home/ken/hyman/data/";
+  string dset_gt_file = "/home/ken/ffld2/scripts/hyman_index.txt";
+  bool is_voc = false;
+
+  bool output_crops = false;
 
   vector<string> files;
 };
@@ -256,9 +265,11 @@ void draw(JPEGImage & image, const Rectangle & rect, uint8_t r, uint8_t g, uint8
 }
 
 void detect(const Mixture & mixture, int width, int height, const HOGPyramid & pyramid,
-      double threshold, double overlap, const string image, ostream & out,
-      const string & images, vector<Detection> & detections, const Scene * scene = 0,
-      Object::Name name = Object::UNKNOWN)
+            double threshold, double overlap, const string image, ostream & out,
+            const string & images, vector<Detection> & detections, const Scene * scene = 0,
+            Object::Name name = Object::UNKNOWN,
+            const string base_dir = "",
+            const bool output_crops = false)
 {
   // Compute the scores
   vector<HOGPyramid::Matrix> scores;
@@ -319,18 +330,38 @@ void detect(const Mixture & mixture, int width, int height, const HOGPyramid & p
 
   for (int i = 1; i < detections.size(); ++i)
     detections.resize(remove_if(detections.begin() + i, detections.end(),
-                  Intersector(detections[i - 1], overlap, true)) -
-              detections.begin());
+                                Intersector(detections[i - 1], overlap, true)) -
+                      detections.begin());
 
   // Find the image id
-  string id = image.substr(0, image.find_last_of('.'));
+  string id;
+  if (base_dir.empty()) {
+    id = image.substr(0, image.find_last_of('.')); // VOC etc.
+  } else {
 
-  if (id.find_last_of("/\\") != string::npos)
-    id = id.substr(id.find_last_of("/\\") + 1);
+    bool keep_dirs = false;
+
+    id = image.substr(0, image.find_last_of('.')); // VOC etc.
+    size_t pos = id.find(base_dir);
+    assert(pos != string::npos);
+    id = id.substr(pos + base_dir.size());
+
+    if (keep_dirs) {
+      while (true) {
+        size_t index = id.find("/");
+        if (index == string::npos) break;
+        id.replace(index, 1, "-_-");
+      }
+    }
+  }
+
+  // voc
+  if (id.find_last_of("/") != string::npos)
+    id = id.substr(id.find_last_of("/") + 1);
 
   // Print the detections
   if (out) {
-#pragma omp critical
+    #pragma omp critical
     for (int i = 0; i < detections.size(); ++i) {
       bool positive = false;
 
@@ -343,9 +374,16 @@ void detect(const Mixture & mixture, int width, int height, const HOGPyramid & p
               positive = true;
       }
 
-      out << id << ' ' << detections[i].score << ' ' << (detections[i].left() + 1) << ' '
-        << (detections[i].top() + 1) << ' ' << (detections[i].right() + 1) << ' '
-        << (detections[i].bottom() + 1) << (positive ? " p" : " n") << endl;
+      string id_string;
+      if (!output_crops) {
+        id_string = id;
+      } else {
+        id_string = id + "_" + std::to_string(i+1);
+      }
+
+      out << id_string << ' ' << detections[i].score << ' ' << (detections[i].left() + 1) << ' '
+          << (detections[i].top() + 1) << ' ' << (detections[i].right() + 1) << ' '
+          << (detections[i].bottom() + 1) << (positive ? " p" : " n") << endl;
     }
   }
 
@@ -353,45 +391,90 @@ void detect(const Mixture & mixture, int width, int height, const HOGPyramid & p
   if (!images.empty()) {
     JPEGImage im(image);
 
-    for (int i = 0; i < detections.size(); ++i) {
-      // Find out if the detection hits an object
-      bool positive = false;
+    if (!output_crops) {
 
-      if (scene) {
-        Intersector intersector(detections[i]);
+      for (int i = 0; i < detections.size(); ++i) {
+        // Find out if the detection hits an object
+        bool positive = false;
 
-        for (int j = 0; j < scene->objects().size(); ++j)
-          if (scene->objects()[j].name() == name)
-            if (intersector(scene->objects()[j].bndbox()))
-              positive = true;
+        if (scene) {
+          Intersector intersector(detections[i]);
+
+          for (int j = 0; j < scene->objects().size(); ++j)
+            if (scene->objects()[j].name() == name)
+              if (intersector(scene->objects()[j].bndbox()))
+                positive = true;
+        }
+
+        const int argmax = argmaxes[detections[i].z](detections[i].y_unscaled, detections[i].x_unscaled);
+
+        const int x = detections[i].x_unscaled;
+        const int y = detections[i].y_unscaled;
+        const int z = detections[i].z;
+
+        for (int j = 0; j < positions[argmax].size(); ++j) {
+          const int xp = positions[argmax][j][z](y, x)(0);
+          const int yp = positions[argmax][j][z](y, x)(1);
+          const int zp = positions[argmax][j][z](y, x)(2);
+
+          const double scale = pow(2.0, static_cast<double>(zp) / pyramid.interval() + 2);
+
+          const Rectangle bndbox((xp - pyramid.padx()) * scale + 0.5,
+                                 (yp - pyramid.pady()) * scale + 0.5,
+                                 mixture.models()[argmax].partSize().second * scale + 0.5,
+                                 mixture.models()[argmax].partSize().first * scale + 0.5);
+
+          draw(im, bndbox, 0, 0, 255, 2);
+        }
+
+        // Draw the root last
+        draw(im, detections[i], positive ? 0 : 255, positive ? 255 : 0, 0, 2);
       }
 
-      const int argmax = argmaxes[detections[i].z](detections[i].y, detections[i].x);
+      im.save(images + '/' + id + ".jpg");
 
-      const int x = detections[i].x;
-      const int y = detections[i].y;
-      const int z = detections[i].z;
+    } else {
 
-      for (int j = 0; j < positions[argmax].size(); ++j) {
-        const int xp = positions[argmax][j][z](y, x)(0);
-        const int yp = positions[argmax][j][z](y, x)(1);
-        const int zp = positions[argmax][j][z](y, x)(2);
+      for (int i = 0; i < detections.size(); ++i) {
+        // Just output all detections
+        const int imwidth = im.width();
+        const int imheight = im.height();
+        const int depth = im.depth();
+        int width = detections[i].width();
+        int height = detections[i].height();
+        int x = detections[i].x();
+        int y = detections[i].y();
 
-        const double scale = pow(2.0, static_cast<double>(zp) / pyramid.interval() + 2);
+        // convert to upper body detection
+        const float height_mul = 4.5;
+        const float width_mul = 4.5;
+        y = y + static_cast<int>(static_cast<float>(height)*0.8);
+        height = static_cast<int>(static_cast<float>(height)*height_mul);
+        x = x - static_cast<int>(static_cast<float>(width)*(width_mul/2.0 - 0.5));
+        width = static_cast<int>(static_cast<float>(width)*width_mul);
 
-        const Rectangle bndbox((xp - pyramid.padx()) * scale + 0.5,
-                     (yp - pyramid.pady()) * scale + 0.5,
-                     mixture.models()[argmax].partSize().second * scale + 0.5,
-                     mixture.models()[argmax].partSize().first * scale + 0.5);
+        JPEGImage crop_im(width, height, depth);
 
-        draw(im, bndbox, 0, 0, 255, 2);
+        for (int i = y; i < (y+height); ++i) {
+          if ((i < 0) || (i >= imheight)) continue;
+          const uint8_t* src_line = im.scanLine(i);
+          uint8_t* dst_line = crop_im.scanLine(i - y);
+
+          for (int j = x; j < (x+width); ++j) {
+            if ((j < 0) || (j >= imwidth)) continue;
+
+            for (int d = 0; d < depth; ++d) {
+              dst_line[(j - x)*depth + d] = src_line[j*depth + d];
+            }
+          }
+        }
+
+        crop_im.save(images + '/' + id + "_" + std::to_string(i+1) + ".jpg");
+
       }
 
-      // Draw the root last
-      draw(im, detections[i], positive ? 0 : 255, positive ? 255 : 0, 0, 2);
     }
 
-    im.save(images + '/' + id + ".jpg");
   }
 }
 
@@ -475,6 +558,15 @@ int parseArgs(int argc, char* argv[], Opts& opts) {
           return -1;
         }
       }
+      else if (args.OptionId() == OPT_DSET_BASE_DIR) {
+        opts.dset_base_dir = args.OptionArg();
+      }
+      else if (args.OptionId() == OPT_DSET_GT_FILE) {
+        opts.dset_gt_file = args.OptionArg();
+      }
+      else if (args.OptionId() == OPT_OUTPUT_CROPS) {
+        opts.output_crops = (atoi(args.OptionArg()) == 1);
+      }
     }
     else {
       showUsage();
@@ -524,7 +616,7 @@ int main(int argc, char ** argv)
   }
 
   // The input file
-  const string gt_anno_file = opts.voc_gt_file;
+  const string gt_anno_file = opts.dset_gt_file;
 
   // // The image/dataset
   // const string file(opts.files[0]);
@@ -631,14 +723,35 @@ int main(int argc, char ** argv)
       string fname = line.substr(0, next_pos);
       vector<int> bb; // x1, y1, x2, y2, width, height
 
-      for (int i = 0; i < 6; ++i) {
+      vector<string> parts;
+      while (true) {
         size_t pos = next_pos;
         next_pos = line.find(" ", pos+1);
+        bool will_break = false;
         if (next_pos == string::npos) {
           next_pos = line.length();
+          will_break = true;
         }
-        bb.push_back(stoi(line.substr(pos+1, pos+1+next_pos)));
+        parts.push_back(line.substr(pos+1, /*pos+1+*/next_pos-pos-1));
+        if (will_break) break;
       }
+      assert(parts.size() >= 6);
+      for (int i = 0; i < (parts.size()-6); ++i) {
+        fname = fname + " " + parts[i];
+        //cout << i << " " << fname << endl;
+      }
+      for (int i = (parts.size()-6); i < parts.size(); ++i) {
+        bb.push_back(stoi(parts[i]));
+      }
+
+      // for (int i = 0; i < 6; ++i) {
+      //   size_t pos = next_pos;
+      //   next_pos = line.find(" ", pos+1);
+      //   if (next_pos == string::npos) {
+      //     next_pos = line.length();
+      //   }
+      //   bb.push_back(stoi(line.substr(pos+1, pos+1+next_pos)));
+      // }
 
       vector<Object> objects;
       objects.push_back(Object(Object::FACE, Object::FRONTAL, false, false, Rectangle(bb[0], bb[1], bb[2]-bb[0], bb[3]-bb[1])));
@@ -646,7 +759,15 @@ int main(int argc, char ** argv)
       const int width = bb[4];
       const int height = bb[5];
       const int depth = 3;
-      const string filename = opts.voc_base_dir + "JPEGImages/" + fname;
+
+      string filename_tail;
+      if (opts.is_voc) {
+        filename_tail = "JPEGImages/" + fname;
+      } else {
+        filename_tail = fname;
+      }
+
+      const string filename = opts.dset_base_dir + filename_tail;
       //cout << "fname: " << filename << endl;
 
       Scene scene(width, height, depth, filename, objects);
@@ -702,7 +823,9 @@ int main(int argc, char ** argv)
       vector<Detection> detections;
 
       detect(mixture, scenes[i].width(), scenes[i].height(), pyramid, opts.threshold, opts.overlap,
-           scenes[i].filename(), out, opts.images, detections, &scenes[i], opts.name);
+             scenes[i].filename(), out, opts.images, detections, &scenes[i], opts.name,
+             opts.dset_base_dir,
+             opts.output_crops);
 
       // Consider only objects of the right class
       for (int j = 0; j < scenes[i].objects().size(); ++j) {
